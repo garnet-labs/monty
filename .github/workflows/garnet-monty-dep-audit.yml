@@ -1,0 +1,53 @@
+name: Garnet Monty Dependency Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dep-audit:
+    name: Dependency Runtime Audit (Garnet)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Garnet Runtime Visibility
+        uses: garnet-org/action@v2
+        with:
+          api_token: ${{ secrets.GARNET_API_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: crates/monty-js/package-lock.json
+
+      - name: Rust dependency graph
+        run: |
+          cargo fetch --locked
+          cargo tree --locked --workspace --depth 3
+
+      - name: Python dependency graph
+        run: |
+          rm -f .cargo/config.toml
+          uv sync --all-packages --only-dev
+          uv pip list
+
+      - name: JavaScript dependency graph
+        working-directory: crates/monty-js
+        run: |
+          npm install
+          npm ls --all --omit=dev || true
